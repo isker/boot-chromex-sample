@@ -1,0 +1,4 @@
+{:require [popup.popup]
+ :compiler-options {:optimizations :simple
+                    :source-map true
+                    :closure-output-charset "US-ASCII"}}

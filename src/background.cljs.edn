@@ -1,0 +1,4 @@
+{:require [background.background]
+ :compiler-options {:optimizations :simple
+                    :source-map true
+                    :closure-output-charset "US-ASCII"}}
