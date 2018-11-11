@@ -1,5 +1,4 @@
 (ns background.background
   (:require [background.core :as core]))
 
-(core/init!)
-
+(core/init!)                            ; TODO runonce

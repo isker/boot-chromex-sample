@@ -1,4 +1,5 @@
 {:require [content-script.content-script]
- :compiler-options {:optimizations :simple
+ :compiler-options {:optimizations :whitespace ; must have at least whitespace because the content script must be a single file, among other things
                     :source-map true
-                    :closure-output-charset "US-ASCII"}}
+                    :pretty-print true
+                    :closure-output-charset "us-ascii"}} ; https://github.com/google/closure-compiler-issues/1704
