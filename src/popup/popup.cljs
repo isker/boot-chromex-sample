@@ -1,4 +1,6 @@
 (ns popup.popup
-  (:require [popup.core :as core]))
+  (:require [popup.core :as core])
+  (:require-macros [chromex.support :refer [runonce]]))
 
-(core/init!)                            ; TODO runonce
+(runonce
+ (core/init!))

@@ -1,4 +1,6 @@
 (ns background.background
-  (:require [background.core :as core]))
+  (:require [background.core :as core])
+  (:require-macros [chromex.support :refer [runonce]]))
 
-(core/init!)                            ; TODO runonce
+(runonce
+ (core/init!))
