@@ -16,7 +16,7 @@
 
 (require
  '[adzerk.boot-cljs :refer [cljs]]
- '[adzerk.boot-cljs-repl :refer [start-repl cljs-repl-env]]
+ '[adzerk.boot-cljs-repl :refer [cljs-repl]]
  '[clojure.java.io :as io]
  '[clojure.string :as str]
  '[hiccup.core :refer [html]]
@@ -50,7 +50,7 @@
 
 (defn- popup-html [script-paths]
   "Produces the contents of popup.html; we need this to be dynamic so that we
-  can load arbitrary scripts."
+  can load arbitrary scripts in dev."
   (html [:html
          [:head (for [p script-paths] [:script {:src p}])]
          [:body [:p "hello world"]]]))
@@ -96,8 +96,8 @@
    (target)))
 
 (deftask dev-manifest
-  "Produce the dev manifest.json.  Must be run after cljs compilation (i.e. at
-  the very end)."
+  "Produce the dev manifest.json and popup.html.  Must be run after cljs
+  compilation (i.e. at the very end)."
   []
   (let [tmp (tmp-dir!)]
     (fn middleware [next-handler]
@@ -125,21 +125,31 @@
 
 (def contentless-targets #{"background" "popup"})
 
-(deftask dev
-  "Serves the assets and compiles the scripts in a watch loop."
-  [c exclude-content bool "Excludes the content script from continuous compilation"]  ; it requires closure optimizations and is thus terribly slow, plus can't be hot reloaded anyway
-
+(deftask dev-figwheel
+  "Compiles and serves the popup and background scripts assets in watch loop
+  with full dev tooling.  Does nothing about the content script."
+  []
   (comp
-   ;; Just compile it once.
-   (when exclude-content (cljs :ids #{"script"}))
-   (watch)
-   ;; Papa Chrome says: no fun allowed in your content script; exclude it from
-   ;; all of the nice dev stuff.
+   (watch :include #{#".*background/.*" #".*popup/.*"})
    (cljs-devtools :ids contentless-targets) ; TODO this doesn't seem to be working...
    (reload :ids contentless-targets)
-   (cljs-repl-env :ids contentless-targets)
-   (if exclude-content
-     (cljs :ids contentless-targets)
-     (cljs))
+   (cljs-repl :ids contentless-targets)
+   (cljs :ids contentless-targets)
    (dev-manifest)
-   (target)))
+   ;; no-clean because we expect dev-content-watch to be running concurrently
+   (target :no-clean true)))
+
+(deftask dev-content-watch
+  "Compiles the content script in a watch loop.  No dev tooling because Chrome
+  disallows it."
+  []
+  (comp
+   (watch :include #{#".*content_script/.*"})
+   (cljs :ids #{"script"})
+   ;; no-clean because we expect dev-figwheel to be running concurrently
+   (target :no-clean true)))
+
+(deftask dev-build
+  "Run a one-off dev build."
+  []
+  (comp (cljs) (dev-manifest) (target)))

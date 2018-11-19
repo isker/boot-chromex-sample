@@ -2,3 +2,5 @@
 .DS_Store
 .nrepl-history
 .nrepl-port
+# Unclear what part of the build is producing this...
+out/
