@@ -95,33 +95,49 @@
    (remove-uncompiled-dirs)
    (target)))
 
+(defn- get-main-ns [fileset build-id]
+  (->> fileset
+       (input-files)
+       (by-name [(str build-id ".cljs.edn")])
+       (first)
+       (:adzerk.boot-cljs/opts)
+       (:main)))
+
+(defn- main-script [namespaces]
+  (str/join "\n" (map #(str "goog.require('" % "');") namespaces)))
+
 (deftask dev-manifest
   "Produce the dev manifest.json and popup.html.  Must be run after cljs
   compilation (i.e. at the very end)."
-  []
+  [p preloads bool "Include preload requires in main scripts."]
   (let [tmp (tmp-dir!)]
     (fn middleware [next-handler]
       (fn handler [fileset]
         (empty-dir! tmp)
-        ;; I tried using boot-cljs metadata to find these paths but they only
-        ;; had the namespaces, not the FS paths.
-        (let [main-paths (map :path (by-re [#".*/boot/cljs/main\d+.js$"]
-                                           (ls fileset)))
-              popup-main (first (filter #(str/starts-with? % "popup") main-paths))
-              background-main (first (filter #(str/starts-with? % "background") main-paths))
+        (let [background-main-ns (get-main-ns fileset "background")
+              popup-main-ns (get-main-ns fileset "popup")
               dev-manifest (-> manifest-template
                                (assoc-in
                                 [:background :scripts]
-                                ["background.out/goog/base.js" "background.out/cljs_deps.js" background-main])
+                                ["background.out/goog/base.js" "background.out/cljs_deps.js" "background-dev.js"])
                                (assoc
                                 :content_security_policy
                                 "script-src 'self' 'unsafe-eval'; object-src 'self'"))]
+          (spit (io/file tmp "background-dev.js")
+                (main-script (if preloads
+                               ["devtools.preload" background-main-ns]
+                               [background-main-ns])))
+          (spit (io/file tmp "popup-dev.js")
+                (main-script (if preloads
+                               ["devtools.preload" popup-main-ns]
+                               [popup-main-ns])))
           (spit-manifest dev-manifest tmp)
-          (spit-popup-html ["popup.out/goog/base.js" "popup.out/cljs_deps.js" popup-main] tmp))
-        (-> fileset
-            (add-asset tmp)
-            commit!
-            next-handler)))))
+          (spit-popup-html ["popup.out/goog/base.js" "popup.out/cljs_deps.js"
+                            "popup-dev.js"] tmp)
+          (-> fileset
+              (add-asset tmp)
+              commit!
+              next-handler))))))
 
 (def contentless-targets #{"background" "popup"})
 
@@ -131,11 +147,13 @@
   []
   (comp
    (watch :include #{#".*background/.*" #".*popup/.*"})
-   (cljs-devtools :ids contentless-targets) ; TODO this doesn't seem to be working...
+   ;; If you remove this task or replace it with dirac, dev-manifest must be
+   ;; updated (see references to devtools.preload)
+   (cljs-devtools :ids contentless-targets)
    (reload :ids contentless-targets)
    (cljs-repl :ids contentless-targets)
    (cljs :ids contentless-targets)
-   (dev-manifest)
+   (dev-manifest :preloads true)
    ;; no-clean because we expect dev-content-watch to be running concurrently
    (target :no-clean true)))
 
